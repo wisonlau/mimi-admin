@@ -1,0 +1,13 @@
+Name: product-rpc
+ListenOn: 0.0.0.0:8812
+
+Etcd:
+  Hosts:
+    - 127.0.0.1:2379
+  Key: product.rpc
+
+Log:
+  ServiceName: product-rpc
+  Stat: false
+  Mode: file
+  Path: logs/product-rpc

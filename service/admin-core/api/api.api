@@ -1,0 +1,38 @@
+syntax = "v1"
+
+type PingResponse {
+	Message string `json:"message"`
+}
+
+type HelloRequest {
+	Name string `json:"name"`
+}
+
+type HelloResponse {
+	Message string `json:"message"`
+}
+
+type RetryResponse {
+	Message string `json:"message"`
+}
+
+type HiResponse {
+	Message string `json:"message"`
+}
+
+service api-api {
+	@handler PingHandler
+	get /api/admin-core/ping returns (PingResponse)
+
+	@handler HelloHandler
+	post /api/admin-core/hello (HelloRequest) returns (HelloResponse)
+
+	@handler TestRetryHandler
+	post /api/admin-core/test_retry returns (RetryResponse)
+
+	@handler HiHandler
+	get /api/admin-core/hi/:name returns (HiResponse)
+
+	@handler Hi2Handler
+	get /api/admin-core/hi/f/ff returns (HiResponse)
+}

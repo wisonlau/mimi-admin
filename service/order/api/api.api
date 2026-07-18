@@ -1,0 +1,21 @@
+syntax = "v1"
+
+type PingResponse {
+	Message string `json:"message"`
+}
+
+type HelloRequest {
+	Name string `json:"name"`
+}
+
+type HelloResponse {
+	Message string `json:"message"`
+}
+
+service api-api {
+	@handler PingHandler
+	get /api/order/ping returns (PingResponse)
+
+	@handler HelloHandler
+	post /api/order/hello (HelloRequest) returns (HelloResponse)
+}

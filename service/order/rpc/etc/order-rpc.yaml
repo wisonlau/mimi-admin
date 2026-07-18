@@ -1,0 +1,13 @@
+Name: order-rpc
+ListenOn: 0.0.0.0:8822
+
+Etcd:
+  Hosts:
+    - 127.0.0.1:2379
+  Key: order.rpc
+
+Log:
+  ServiceName: order-rpc
+  Stat: false
+  Mode: file
+  Path: logs/order-rpc

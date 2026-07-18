@@ -1,0 +1,14 @@
+Name: admin-core-rpc
+ListenOn: 0.0.0.0:8802
+Mode: dev
+
+Etcd:
+  Hosts:
+    - 127.0.0.1:2379
+  Key: admin-core.rpc
+
+Log:
+  ServiceName: admin-core-rpc
+  Stat: false
+  Mode: file
+  Path: logs/admin-core-rpc

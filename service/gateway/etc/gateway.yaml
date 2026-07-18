@@ -1,0 +1,194 @@
+Name: api-gateway
+Host: 0.0.0.0
+Port: 8888
+
+Etcd:
+  Hosts:
+    - 127.0.0.1:2379
+  Key: gateway
+
+Redis:
+  Address: 127.0.0.1:6379
+  Pass: ""
+
+Log:
+  ServiceName: gateway
+  Stat: false
+  Mode: file
+  Path: logs/gateway
+
+# 服务韧性组件
+Resilience:
+  CpuThreshold: 900        # CPU > 80% 触发降载（默认 900）
+  # 以下各项默认均为 true，想关闭某项才需要显式写 false
+  # Shedding: true          # 降载
+  # Breaker: true           # 熔断
+  # Timeout: true           # 超时控制
+  # Recover: true           # 恐慌恢复
+  # Trace: true             # 链路追踪
+  # Log: true               # 请求日志
+  # Prometheus: true        # 指标采集
+  # MaxConns: true          # 最大连接数
+
+# todo 目前网关只支持 HTTP 入口，gRPC → gRPC 代理需要 go-zero 作者后续支持
+
+Upstreams:
+  # ---- admin-core HTTP to HTTP ----
+  - Name: admin-core-http
+    Http:
+      Timeout: 1s # 超时
+      Etcd:
+        Hosts:
+          - 127.0.0.1:2379
+        Key: admin-core.api
+    Mappings:
+      - Method: get
+        Path: /api/admin-core/ping
+        Middlewares:
+          - TokenLimiter: # 限流器
+              Redis:
+                Host: 127.0.0.1:6379
+                Pass: ""
+              Type: path # 路径
+              Rate: 100        # 每秒允许请求数
+              Burst: 200       # 最大突发请求数
+          - HelloLogging: # 打印hello
+          - Cors: # 跨域
+              allowCredentials: true # 允许前端请求携带身份凭证，比如 Cookies 或 HTTP 认证信息。当设置为 true 时，前端代码中的 fetch 或 XMLHttpRequest 可以设置 withCredentials: true 来发送凭证
+              allowHeaders: # 允许前端在请求中携带的自定义 HTTP 头
+               - "Content-Type, Authorization"
+              allowOrigins: # 允许跨域访问的来源（域名）
+               - ".google.com"
+              allowMethods: # 允许前端使用的 HTTP 方法
+               - "GET"
+               - "POST"
+               - "OPTIONS"
+      - Method: post
+        Path: /api/admin-core/hello
+        Middlewares:
+          - HelloLogging: # 打印hello
+          - Retry:
+              attempts: 3 # 重试次数
+              perTryTimeout: 0.1s # 每次尝试（包括首次请求）的超时时间
+              conditions: # 重试条件(定义了在什么情况下才触发重试。这里的逻辑是“或”的关系，即满足下面任何一个条件，网关就会按照 attempts 的设置进行重试)
+                 - byStatusCode: '502-504' # 502（坏网关）、503（服务不可用）或 504（网关超时） 中的任何一个，就会触发重试
+                 - byHeader: # 这是一个基于响应头（Header）的条件。对于 gRPC 请求，gRPC 的状态码会以 Grpc-Status 这个头部信息返回。这里的 value: '14' 对应的是 gRPC 状态码 UNAVAILABLE（服务不可用）。当后端 gRPC 服务返回这个状态时，也会触发重试
+                     name: 'X-Request-ID'
+                     value: ''
+      - Method: post
+        Path: /api/admin-core/test_retry
+        Middlewares:
+          - Retry: # 重试器
+              attempts: 3
+              perTryTimeout: 0.1s
+              conditions:
+                - byStatusCode: '502-504'
+                - byHeader:
+                    name: 'X-Request-ID'
+                    value: ''
+      - Method: get
+        Path: /api/admin-core/hi/:name # todo 网关的 Path 不支持 * 通配（go-zero 的 rest 框架本身支持，但 gateway 包的 HTTP 路由匹配只支持 :param 命名参数），所以无法用一条 /* 覆盖所有子路径，需要分别列出。
+      - Method: get
+        Path: /api/admin-core/hi/f/ff
+
+  # ---- admin-core HTTP to gRPC ----
+  - Name: admin-core-grpc
+    Grpc:
+      Etcd:
+        Hosts:
+          - 127.0.0.1:2379
+        Key: admin-core.rpc
+      Timeout: 5000
+    ProtoSets:
+      - admin-core.pb
+    Mappings:
+      - Method: get
+        Path: /grpc/admin-core/ping
+        RpcPath: rpc.Rpc/Ping
+      - Method: post
+        Path: /grpc/admin-core/hello
+        RpcPath: rpc.Rpc/Hello
+        Middlewares:
+          - HelloLogging:
+          - Retry:
+              attempts: 3
+              perTryTimeout: 0.1s
+              conditions:
+                - byStatusCode: '502-504'
+                - byHeader:
+                    name: 'Grpc-Status'
+                    value: '14'
+      - Method: post
+        Path: /grpc/admin-core/testerr
+        RpcPath: rpc.Rpc/Testerr
+
+  # ---- product HTTP to HTTP ----
+  - Name: product-http
+    Http:
+      Timeout: 1000ms
+      Etcd:
+        Hosts:
+          - 127.0.0.1:2379
+        Key: product.api
+    Mappings:
+      - Method: get
+        Path: /api/product/ping
+      - Method: post
+        Path: /api/product/hello
+        Middlewares:
+          - TokenLimiter: # 限流器
+              Redis:
+                Host: 127.0.0.1:6379
+                Pass: ""
+              Type: path # 路径
+              Rate: 100        # 每秒允许请求数
+              Burst: 200       # 最大突发请求数
+
+  # ---- product HTTP to gRPC ----
+  - Name: product-grpc
+    Grpc:
+      Etcd:
+        Hosts:
+          - 127.0.0.1:2379
+        Key: product.rpc
+      Timeout: 5000
+    ProtoSets:
+      - product.pb
+    Mappings:
+      - Method: get
+        Path: /grpc/product/ping
+        RpcPath: rpc.Rpc/Ping
+      - Method: post
+        Path: /grpc/product/hello
+        RpcPath: rpc.Rpc/Hello
+
+  # ---- order HTTP to HTTP ----
+  - Name: order-http
+    Http:
+      Target: localhost:8821
+      Timeout: 1.5s
+    Mappings:
+      - Method: get
+        Path: /api/order/ping
+      - Method: post
+        Path: /api/order/hello
+    Middlewares:
+      - TokenLimiter: # 限流器
+          # 不写redis配置则使用系统默认的redis
+          Type: node # 节点
+          Rate: 100        # 每秒允许请求数
+          Burst: 200       # 最大突发请求数
+  # ---- order HTTP to gRPC ----
+  - Name: order-grpc
+    Grpc:
+      Target: localhost:8822
+      Timeout: 5000
+    ProtoSets:
+      - order.pb
+    Mappings:
+      - Method: get
+        Path: /grpc/order/ping
+        RpcPath: rpc.Rpc/Ping
+      - Method: post
+        Path: /grpc/order/hello
+        RpcPath: rpc.Rpc/Hello

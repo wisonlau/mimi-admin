@@ -1,0 +1,25 @@
+# Compiled binaries
+*.out
+*.test
+*.prof
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Logs
+service/admin-core/api/logs/*
+service/admin-core/rpc/logs/*
+service/gateway/logs/*
+service/order/api/logs/*
+service/order/rpc/logs/*
+service/product/api/logs/*
+service/product/rpc/logs/*
+
+# Temp
+/tmp/
